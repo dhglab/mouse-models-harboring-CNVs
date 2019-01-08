@@ -14,7 +14,7 @@ library(stringr)
 library(sva)
 rm(list = ls())
 outputfile_counter = 1
-outputFolder = "output/wgcna_data"
+outputFolder = "output/wgcna"
 dir.create(outputFolder,showWarnings = F,recursive = T)
 
 outlierAnalysis <- function(datExpr,datMeta,title,color.by){

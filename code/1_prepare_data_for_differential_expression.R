@@ -12,9 +12,8 @@ library(tidyverse)
 library(stringr)
 library(gridExtra)
 library(sva)
-rm(list = ls())
-outputfile_counter = 1
-outputFolder = "analysis/star_featureCounts/2.2_splitByStudy_keepCNV_noWB/"
+
+outputFolder = "output/DE/"
 dir.create(outputFolder, showWarnings = F, recursive = T)
 
 outlierAnalysis <- function(datExpr,datMeta,title,color.by){
@@ -119,7 +118,7 @@ for (condition in conditions) {
   save(list=paste(c("datExpr","datMeta","datQC"),condition,sep="_"),file=paste0(file=paste0(outputFolder,condition,"_star_cqn_noramlize_regress.rdata")))
 }
 # 
-# (10) combine all studies and split by Tissue  ------------------------------------------------------
+# combine all studies and split by Tissue  ------------------------------------------------------
 for (condition in conditions){
   load(file=paste0(file=paste0(file=paste0(outputFolder,condition,"_star_cqn_noramlize_regress.rdata"))))
 }
@@ -128,4 +127,4 @@ datExprAll <- do.call("cbind",datExprAll)
 datMetaAll <- lapply(conditions, function(x) get(paste0("datMeta_",x)))
 datMetaAll <- do.call("rbind",datMetaAll)
 stopifnot(all(rownames(datMetaAll)==colnames(datExprAll)))
-save(datExprAll, datMetaAll, file = file.path("output/all_norm_data.rdata"))
+save(datExprAll, datMetaAll, file = file.path(outputFolder,"all_norm_data.rdata"))
