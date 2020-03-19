@@ -1,4 +1,7 @@
-# Run WGCNA on mCNV data
+# Run WGCNA on mCNV data 
+
+#Don't run this script on a macOS as the calculation will be incorcet. 
+
 
 options(stringsAsFactors=FALSE)
 packages <- c("impute","dynamicTreeCut","flashClust","Hmisc",
@@ -9,7 +12,6 @@ sapply(packages, require, character.only = TRUE)
 #run  WGCNA
 
 outputFolder <- "output/wgcna/"
-dir.create(outputFolder,recursive = T,showWarnings = F)
 
 load("data/GeneAnnotation.rda")
 
@@ -58,11 +60,9 @@ for (condition in conditions) {
     datExpr <- datExpr0[gsg$goodSamples, gsg$goodGenes]
   }
   
-  #make sure there aren't to many NA's in the data
   
   
   #correlate genes with traits
-  
   geneSigs=matrix(NA,nrow=ncol(datMeta1),ncol=ncol(datExpr)) # create a vector to hold the data
   rownames(geneSigs)=colnames(datMeta1)
   
@@ -113,17 +113,23 @@ for (condition in conditions) {
   } 
   
   #create dissimilarity TOM
-  adjacency = adjacency(datExpr, power = softPower, type = "signed",corFnc="bicor",corOptions="use='pairwise.complete.obs'"); 
+  adjacency = adjacency(datExpr, power = softPower, type = "signed",corFnc = "bicor",corOptions = "use='pairwise.complete.obs'")
   # Turn adjacency into topological overlap
   TOM = TOMsimilarity(adjacency)
-  dissTOM = 1-TOM
-  save(dissTOM, file=paste0(outputFolder,condition,"_dissTOM.Rdata" ))
+  dissTOM = 1 - TOM
+  save(dissTOM, file = paste0(outputFolder,condition,"_dissTOM.Rdata" ))
 
   # set parameters
-  if (condition=="cortex"){
-    ds =2;mms=100;dthresh=0.1;
-  } else if (condition=="hippocampus") {
-    ds = 4;mms = 160;dthresh = 0.1;
+  if (condition == "cortex") {
+    ds = 2
+    mms = 100
+    dthresh = 0.1
+    
+  } else if (condition == "hippocampus") {
+    ds = 4
+    mms = 160
+    dthresh = 0.1
+    
   } 
   # create Modules
   createModules(outputFolder,condition)
@@ -138,7 +144,7 @@ for (condition in conditions) {
   mColorh <- cbind(labels2colors(merge$colors),t(geneSigs))
   mLabelh <- c("Merged Colors",rownames(geneSigs))
   
-  pdf(paste0(outputFolder,,condition,"ModuleDendro.pdf"),height=10,width=16) 
+  pdf(paste0(outputFolder,condition,"ModuleDendro.pdf"),height = 10, width = 16) 
   plotDendroAndColors(geneTree, mColorh, groupLabels = mLabelh,addGuide=TRUE,dendroLabels=FALSE,main= paste("Signed bicor network with power = ",softPower,"mms=",mms,"ds=",ds,"dthresh=",dthresh))
   dev.off()
   

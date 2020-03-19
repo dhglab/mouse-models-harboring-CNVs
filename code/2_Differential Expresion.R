@@ -7,9 +7,13 @@ library(limma)
 library(tidyverse)
 library(reshape)
 library(edgeR)
+base_folder <- "output/DE/"
+
 
 load("data/compiledData.rdata")
 load("data/GeneAnnotation.rda")
+
+
 geneAnno <-  geneAnnoRaw %>% 
   filter(chromosome_name %in% c(1:22,"X","Y","MT")) %>%   ##  only keep real chromosomes
   group_by(ensembl_gene_id) %>%
@@ -68,6 +72,6 @@ for (tissue in tissues) {
   }
 }
 
-save(cnv_limmaVoom,Ns,file=paste0(outputFolder,"output/voom_results.rdata"))
+save(cnv_limmaVoom,Ns,file=file.path(base_folder,"voom_results.rdata"))
 
 

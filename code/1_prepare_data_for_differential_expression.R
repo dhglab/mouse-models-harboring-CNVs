@@ -13,7 +13,14 @@ library(stringr)
 library(gridExtra)
 library(sva)
 
-outputFolder = "output/DE/"
+###  ### ### ### ### ### ### ### ### ### ### ### ### ### 
+#change the working directory to the GitHub directory
+setwd("~/repo/mouse-models-harboring-CNVs/")
+###  ### ### ### ### ### ### ### ### ###### ### ### ###
+
+
+
+outputFolder ="output/DE/"
 dir.create(outputFolder, showWarnings = F, recursive = T)
 
 outlierAnalysis <- function(datExpr,datMeta,title,color.by){
@@ -37,10 +44,12 @@ outlierAnalysis <- function(datExpr,datMeta,title,color.by){
   return(outliers)
 }
 
-#Load Expression, Meta and QC data  and format them ----------------------------------------
-load(file = "data/compiledData.rdata") # compiled using 0.2_compile_data.R
+#Load Expression, Meta and QC data and format them ----------------------------------------
+load(file = "data/compiledData.rdata") 
+rownames(datMeta) <- datMeta$matchID
 datMetaRaw <- datMeta
 datExprRaw <- datExpr[,match(rownames(datMetaRaw), colnames(datExpr))]
+
 datQCRaw <- datQC[match(rownames(datMetaRaw),rownames(datQC)),]
 
 datMetaRaw$Sequencing.study <- make.names(datMetaRaw$Sequencing.study)
@@ -73,12 +82,15 @@ for (condition in conditions) {
   datQC <- datQCRaw[rownames(datQCRaw) %in% rownames(datMeta),]
   
   #  Get Gene Annotaion --------------------------------------------
-  # library(biomaRt)
-  # getinfo <- c("ensembl_gene_id","mgi_symbol","chromosome_name","strand","start_position", "end_position","gene_biotype","transcript_length","percentage_gc_content")
-  # mouseMart <- useMart(biomart="ensembl",dataset="mmusculus_gene_ensembl") #change if working with differnet spieces
-  # geneAnnoRaw <- getBM(attributes = getinfo,filters=c("ensembl_gene_id"),values=rownames(datExprRaw),mart=mouseMart)
-  # save(geneAnnoRaw,file="data/GeneAnnotation.rda")
-  load("data/GeneAnnotation.rda")
+  if (!file.exists("data/GeneAnnotation.rda")) {
+    library(biomaRt)
+    getinfo <- c("ensembl_gene_id","mgi_symbol","chromosome_name","strand","start_position", "end_position","gene_biotype","transcript_length","percentage_gc_content")
+    mouseMart <- useMart(biomart = "ensembl", dataset = "mmusculus_gene_ensembl") 
+    geneAnnoRaw <- getBM(attributes = getinfo,filters = c("ensembl_gene_id"),values = rownames(datExprRaw),mart = mouseMart)
+    save(geneAnnoRaw,file = "data/GeneAnnotation.rda")
+  } else {
+    load("data/GeneAnnotation.rda")
+  }
   geneAnno <-  geneAnnoRaw %>% 
     group_by(ensembl_gene_id) %>%
     filter(chromosome_name %in% c(1:22,"X","Y","MT")) %>%   ##  only keep real chromosomes
@@ -99,7 +111,7 @@ for (condition in conditions) {
   datMeta <- datMeta[!outliers, ]
   datExpr.htg <- datExpr.htg[, !outliers]
   datQC <- datQC[!outliers,]
- 
+  
   ## get the PCs of the sequencing statistics ---------------------------------------------------------------------------------
   datQCcolstoRemove <-  grep("CATEGORY|ESTIMATED_LIBRARY_SIZE|pair",colnames(datQC),ignore.case = T)
   datQCforPCA <- datQC[,-c(datQCcolstoRemove)]
@@ -109,21 +121,22 @@ for (condition in conditions) {
   varexp <- (PC.datQC$sdev)^2 / sum(PC.datQC$sdev^2)
   topPC.datQC <- PC.datQC$rotation[,1:5]
   colnames(topPC.datQC) <- c("SeqPC1","SeqPC2" ,"SeqPC3","SeqPC4","SeqPC5")
-
+  
   datMeta <- cbind(datMeta,topPC.datQC) # add sequencing PCs to meta data
-
-  assign(paste0("datExpr_",condition),datExpr)
+  
+  assign(paste0("datExpr_",condition),datExpr.htg)
   assign(paste0("datMeta_",condition),datMeta)
   assign(paste0("datQC_",condition),datQC)
-  save(list=paste(c("datExpr","datMeta","datQC"),condition,sep="_"),file=paste0(file=paste0(outputFolder,condition,"_star_cqn_noramlize_regress.rdata")))
+  save(list=paste(c("datExpr","datMeta","datQC"),condition,sep="_"),file=file.path(outputFolder,paste0(condition,"_star_cqn_noramlize_regress.rdata")))
 }
 # 
-# combine all studies and split by Tissue  ------------------------------------------------------
+# combine all studies  ------------------------------------------------------
 for (condition in conditions){
-  load(file=paste0(file=paste0(file=paste0(outputFolder,condition,"_star_cqn_noramlize_regress.rdata"))))
+  load(file=paste0(outputFolder,condition,"_star_cqn_noramlize_regress.rdata"))
 }
 datExprAll <- sapply(conditions, function(x) get(paste0("datExpr_",x)))
 datExprAll <- do.call("cbind",datExprAll)
+
 datMetaAll <- lapply(conditions, function(x) get(paste0("datMeta_",x)))
 datMetaAll <- do.call("rbind",datMetaAll)
 stopifnot(all(rownames(datMetaAll)==colnames(datExprAll)))

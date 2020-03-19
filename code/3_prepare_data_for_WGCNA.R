@@ -1,9 +1,10 @@
-#5/12/16
-#Aaron Gordon
-#Run data normalization and QC on mCNV data
+
 
 # set up R and some variables ----------------------------
-setwd("~/Aaron/Projects/mCNVs/")
+###  ### ### ### ### ### ### ### ### ### ### ### ### ### 
+#change the working directory to the GitHub directory
+setwd("~/repo/mouse-models-harboring-CNVs/")
+###  ### ### ### ### ### ### ### ### ###### ### ### ###
 options(stringsAsFactors = FALSE)
 library(ggplot2)
 library(WGCNA)
@@ -34,6 +35,7 @@ outlierAnalysis <- function(datExpr,datMeta,title,color.by){
 
 #Load Expression, Meta and QC data  and format them ----------------------------------------
 load(file = "data/compiledData.rdata") # compiled using 0.2_compile_data.R
+rownames(datMeta) <- datMeta$matchID
 
 datExprRaw <- datExpr
 datMetaRaw <- datMeta
@@ -48,21 +50,18 @@ datMetaRaw$CNV <- as.factor(ifelse(datMetaRaw$Sequencing.study == "IBP.ANGF.stud
                                    datMetaRaw$CNV))
 
 
+stopifnot((colnames(datExprRaw) == rownames(datMetaRaw)))
+stopifnot(all(rownames(datQCRaw) == rownames(datMetaRaw)))
 
 # subset data --------------------
 #only keep hemizygous and matching wt samples
 
-samples_to_keep <- (datMeta$CNV %in% c("1q21","22q11") | grepl("2|4|6",datMeta$Sequencing.study )) & 
-  datMeta$Tissue %in% c("cortex", "hippocampus")
+samples_to_keep <- (datMeta$CNV %in% c("1q21","22q11") | grepl("2|4|6",datMeta$Sequencing.study ))
 
 datMeta <- subset(datMetaRaw, samples_to_keep)
 datMeta   <-  droplevels(datMeta)
 
-conditions = unique(datMeta$Sequencing.study)
-
-
-
-
+conditions <- unique(datMeta$Sequencing.study)
 
 #  Filter very low epression genes  --------------------
 # genes with less than 10 counts in 60% of  samples 
@@ -75,7 +74,7 @@ datMeta_subset <- datMeta
 
 
 for (condition in conditions) {
- 
+  
   #  subset data
   datMeta <- subset(datMeta_subset, Sequencing.study == condition & Genotype != "homo")
   datMeta <- droplevels(datMeta)
@@ -83,13 +82,15 @@ for (condition in conditions) {
   datQC <- datQCRaw[rownames(datQCRaw) %in% rownames(datMeta),]
   
   # (4) Get Gene Annotaion --------------------------------------------
-  # library(biomaRt)
-  # getinfo <- c("ensembl_gene_id","mgi_symbol","chromosome_name","strand","start_position", "end_position","gene_biotype","transcript_length","percentage_gc_content")
-  # mouseMart <- useMart(biomart="ensembl",dataset="mmusculus_gene_ensembl") #change if working with differnet spieces
-  # geneAnnoRaw <- getBM(attributes = getinfo,filters=c("ensembl_gene_id"),values=rownames(datExprRaw),mart=mouseMart)
-  # save(geneAnnoRaw,file="./data/GeneAnnotation.rda")
-  
-  load("./data/GeneAnnotation.rda")
+  if (!file.exists("data/GeneAnnotation.rda")) {
+    library(biomaRt)
+    getinfo <- c("ensembl_gene_id","mgi_symbol","chromosome_name","strand","start_position", "end_position","gene_biotype","transcript_length","percentage_gc_content")
+    mouseMart <- useMart(biomart = "ensembl",dataset = "mmusculus_gene_ensembl") 
+    geneAnnoRaw <- getBM(attributes = getinfo,filters = c("ensembl_gene_id"),values = rownames(datExprRaw), mart = mouseMart)
+    save(geneAnnoRaw,file = "data/GeneAnnotation.rda")
+  } else{
+    load("data/GeneAnnotation.rda")
+  }
   geneAnno <-  geneAnnoRaw %>% 
     group_by(ensembl_gene_id) %>%
     filter(chromosome_name %in% c(1:22,"X","Y","MT")) %>%   ##  only keep real chromosomes
@@ -112,7 +113,7 @@ for (condition in conditions) {
   
   
   # (6) Remove Outliers --------------------------------------------------------------------
- 
+  
   
   outliers <- outlierAnalysis(datExpr,datMeta,condition,"CNV")
   datMeta<-datMeta[!outliers,]
@@ -132,10 +133,10 @@ for (condition in conditions) {
   
   datMeta <- cbind(datMeta,topPC.datQC)
   
-
+  
   # Regress out covaritaes ----------------------------------------------------
-  datExpr_preRgression <- datExpr
-
+  datExpr_preRgression <- datExpr.htg
+  
   datMetaforRegress <- datMeta
   datMetaforRegress$Timepoint <- as.character(datMetaforRegress$Timepoint)
   datMetaforRegress$Timepoint[is.na(datMetaforRegress$Timepoint)] <- -1 
@@ -161,12 +162,12 @@ for (condition in conditions) {
   assign(paste0("datExpr_",condition),datExpr)
   assign(paste0("datMeta_",condition),datMeta)
   assign(paste0("datQC_",condition),datQC)
-  save(list=paste(c("datExpr","datMeta","datQC"),condition,sep="_"),file=paste0(file=paste0(outputFolder,condition,"_star_cqn_noramlize_regress.rdata")))
+  save(list=paste(c("datExpr","datMeta","datQC"),condition,sep="_"),file=file.path(outputFolder,paste0(condition,"_star_cqn_noramlize_regress.rdata")))
 }
 
 # (10) combine all studies and split by Tissue  ------------------------------------------------------
 for (conditon in conditions){
-  load(file=paste0(file=paste0(file=paste0(outputFolder,condition,"_star_cqn_noramlize_regress.rdata"))))
+  load(file=paste0(file=file.path(outputFolder,paste0(condition,"_star_cqn_noramlize_regress.rdata"))))
 }
 datExprAll <- sapply(conditions, function(x) get(paste0("datExpr_",x)))
 datExprAll <- do.call("cbind",datExprAll)
@@ -176,7 +177,7 @@ stopifnot(all(rownames(datMetaAll)==colnames(datExprAll)))
 
 
 
-# egress out covariates per tissue ---------------------------------
+# Regress out covariates per tissue ---------------------------------
 for (condition2 in unique(datMetaAll$Tissue)){
   
   cat(condition2)
@@ -203,7 +204,7 @@ for (condition2 in unique(datMetaAll$Tissue)){
   # Remove outliers from combined data
   outliers2 <- outlierAnalysis(datExpr,datMeta,condition2, "Sequencing.study")
   
- 
+  
   datMeta <- datMeta[!outliers2,]
   datExpr <- datExpr[,!outliers2]  
   
@@ -211,7 +212,7 @@ for (condition2 in unique(datMetaAll$Tissue)){
   assign(paste0("datExpr_",condition2),datExpr)
   assign(paste0("datMeta_",condition2),datMeta)
   assign(paste0("datQC_",condition2),datQC)
-  save(list=paste(c("datExpr","datMeta"),condition2,sep="_"),file=paste0(file=paste0(outputFolder,condition2,"_star_cqn_noramlize_regress.rdata")))
+  save(list = paste(c("datExpr","datMeta"),condition2,sep="_"),file=file.path(outputFolder,paste0(condition2,"_star_cqn_noramlize_regress.rdata")))
 }
 
 
